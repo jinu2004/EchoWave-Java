@@ -1,0 +1,9 @@
+name: EchoWave
+version: '${version}'
+
+main: org.nxblack.echoWave.EchoWave
+api-version: '26.1'
+commands:
+  echo:
+    description: EchoWave Voice
+    usage: /echo
