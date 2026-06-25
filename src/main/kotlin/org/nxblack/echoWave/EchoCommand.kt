@@ -15,13 +15,16 @@ class EchoCommand(private val plugin: EchoWave) : CommandExecutor {
         args: Array<out String>
     ): Boolean {
 
-        if (plugin.isVoiceBanned(sender as Player)) {
+        if (sender !is Player)
+            return true
+
+        val subcommand = args.firstOrNull()?.lowercase()
+
+        if (plugin.isVoiceBanned(sender) &&
+            subcommand !in setOf("voiceban", "voiceunban", "voicecheck")) {
             sender.sendMessage("§c[EchoWave] You are banned from voice chat.")
             return true
         }
-
-        if (sender !is Player)
-            return true
 
         if (args.isEmpty()) {
             sender.sendMessage("§bEchoWave")
@@ -30,7 +33,15 @@ class EchoCommand(private val plugin: EchoWave) : CommandExecutor {
             sender.sendMessage("§7/echo join <code>")
             sender.sendMessage("§7/echo leave")
             sender.sendMessage("§7/echo members")
+            sender.sendMessage("/echo kick <player>")
+            sender.sendMessage("/echo transfer <player>")
             return true
+        }
+        if (sender.hasPermission("echowave.admin")) {
+            sender.sendMessage("§7/echo voiceban <player>")
+            sender.sendMessage("§7/echo voiceunban <player>")
+            sender.sendMessage("§7/echo voicecheck <player>")
+            sender.sendMessage("§7/echo reload")
         }
 
         when (args[0].lowercase()) {
@@ -38,6 +49,7 @@ class EchoCommand(private val plugin: EchoWave) : CommandExecutor {
             "mute" -> {
                 val settings = plugin.getPlayerSettings(sender)
                 settings.muted = !settings.muted
+                plugin.updateMuteNameTag(sender)
                 sender.sendMessage(
                     if(settings.muted)"§cVoice chat muted."
                     else "§aVoice chat unmuted."
@@ -88,6 +100,7 @@ class EchoCommand(private val plugin: EchoWave) : CommandExecutor {
 
                 plugin.transferOwnership(sender, args[1])
             }
+
             "voiceban" -> {
 
                 if (!sender.hasPermission("echowave.admin")) {
@@ -112,6 +125,70 @@ class EchoCommand(private val plugin: EchoWave) : CommandExecutor {
                 Bukkit.broadcastMessage(
                     "§c[EchoWave] ${target.name} has been banned from voice chat."
                 )
+            }
+
+            "voiceunban" -> {
+
+                if (!sender.hasPermission("echowave.admin")) {
+                    sender.sendMessage("§cNo permission.")
+                    return true
+                }
+
+                if (args.size < 2) {
+                    sender.sendMessage("§cUsage: /echo voiceunban <player>")
+                    return true
+                }
+
+                val target = Bukkit.getPlayerExact(args[1])
+
+                if (target == null) {
+                    sender.sendMessage("§cPlayer not found.")
+                    return true
+                }
+
+                plugin.setVoiceBan(target, false)
+
+                Bukkit.broadcastMessage(
+                    "§a[EchoWave] ${target.name} has been unbanned from voice chat."
+                )
+            }
+
+            "voicecheck" -> {
+
+                if (!sender.hasPermission("echowave.admin")) {
+                    sender.sendMessage("§cNo permission.")
+                    return true
+                }
+
+                if (args.size < 2) {
+                    sender.sendMessage("§cUsage: /echo voicecheck <player>")
+                    return true
+                }
+
+                val target = Bukkit.getPlayerExact(args[1])
+
+                if (target == null) {
+                    sender.sendMessage("§cPlayer not found.")
+                    return true
+                }
+
+                sender.sendMessage(
+                    "§e${target.name}: ${
+                        if (plugin.isVoiceBanned(target)) "BANNED"
+                        else "ALLOWED"
+                    }"
+                )
+            }
+
+            "reload" -> {
+
+                if (!sender.hasPermission("echowave.admin")) {
+                    sender.sendMessage("§cNo permission.")
+                    return true
+                }
+
+                plugin.reload(sender)
+
             }
 
             else -> {

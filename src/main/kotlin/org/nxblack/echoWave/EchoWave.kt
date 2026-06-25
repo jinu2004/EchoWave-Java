@@ -8,6 +8,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.bukkit.Bukkit
+import org.bukkit.Sound
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
@@ -25,7 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class EchoWave : JavaPlugin(), Listener {
     companion object {
         const val SERVER_URL = "https://proxybedrock.onrender.com"
-        const val PARTY_CHARS ="ABCDEFGHJKLMNOPQRSTUVWXYZ03456789"
+        const val GROUP_CHARS ="ABCDEFGHJKLMNOPQRSTUVWXYZ03456789"
     }
 
 
@@ -43,14 +44,13 @@ class EchoWave : JavaPlugin(), Listener {
         playerSettings.remove(event.player.uniqueId)
     }
 
-
-
     override fun onEnable() {
 
         saveDefaultConfig()
-
         config.getStringList("voice-bans")
-            .map(UUID::fromString)
+            .mapNotNull {
+                runCatching { UUID.fromString(it) }.getOrNull()
+            }
             .forEach(voiceBannedPlayers::add)
 
         scope.launch {
@@ -59,8 +59,11 @@ class EchoWave : JavaPlugin(), Listener {
             }
         }
 
-        getCommand("echo")!!
-            .setExecutor(EchoCommand(this))
+        getCommand("echo")!!.apply {
+            setExecutor(EchoCommand(this@EchoWave))
+            tabCompleter = EchoTabCompleter(this@EchoWave)
+        }
+
 
         server.pluginManager.registerEvents(this,this)
 
@@ -106,9 +109,6 @@ class EchoWave : JavaPlugin(), Listener {
     override fun onDisable() {
         scope.cancel()
     }
-
-
-
 
     private suspend fun createRoom() {
         try {
@@ -189,7 +189,6 @@ class EchoWave : JavaPlugin(), Listener {
 
     }
 
-
     fun isVoiceBanned(player: Player): Boolean {
         return player.uniqueId in voiceBannedPlayers
     }
@@ -200,16 +199,23 @@ class EchoWave : JavaPlugin(), Listener {
         } else {
             voiceBannedPlayers.remove(player.uniqueId)
         }
+
+        config.set(
+            "voice-bans",
+            voiceBannedPlayers.map(UUID::toString)
+        )
+
+        saveConfig()
     }
 
     fun generatePartyCode(): String {
 
         while (true) {
             val code = buildString {
-                repeat(4) {append( PARTY_CHARS.random())}
+                repeat(4) {append( GROUP_CHARS.random())}
             }
-            val exists = groups.values.any {it.joinCode == code}
-            if (!exists)  return code
+            if (!groups.containsKey(code))
+                return code
         }
     }
 
@@ -220,7 +226,7 @@ class EchoWave : JavaPlugin(), Listener {
     }
 
     fun joinGroup(player: Player,code: String){
-        val invites = pendingInvites[player.uniqueId]?.toList()
+        val invites = pendingInvites[player.uniqueId]
 
         if(invites == null){
             player.sendMessage("§cYou don't have a pending invite.")
@@ -245,7 +251,7 @@ class EchoWave : JavaPlugin(), Listener {
         val settings = getPlayerSettings(player)
 
         if (!settings.groupId.isNullOrBlank()) {
-            player.sendMessage("§cleave your current party first.")
+            player.sendMessage("§cLeave your current group first.")
             return
         }
         group.members.add(player.uniqueId)
@@ -258,12 +264,13 @@ class EchoWave : JavaPlugin(), Listener {
             pendingInvites.remove(player.uniqueId)
         }
 
-        player.sendMessage("§aJoined the party.")
+        player.sendMessage("§aJoined the group.")
 
         group.members.forEach {
-            Bukkit.getPlayer(it)
-                ?.sendMessage("§b${player.name} joined the party.")
+            val member = Bukkit.getPlayer(it) ?: return@forEach
 
+            member.sendMessage("§b${player.name} joined the group.")
+            playConfiguredSound(member, "sounds.join")
         }
 
 
@@ -273,7 +280,7 @@ class EchoWave : JavaPlugin(), Listener {
         val settings = getPlayerSettings(player)
 
         val groupId = settings.groupId ?: run {
-            player.sendMessage("§cYou are not in a party.")
+            player.sendMessage("§cYou are not in a group.")
             return
         }
 
@@ -286,22 +293,22 @@ class EchoWave : JavaPlugin(), Listener {
 
             if (group.members.isEmpty()) {
                 groups.remove(groupId)
-                player.sendMessage("§cParty disbanded.")
+                player.sendMessage("§cGroup disbanded.")
                 return
             }
 
             val newOwner = group.members.first()
             group.owner = newOwner
 
-            player.sendMessage("§eYou left the party.")
+            player.sendMessage("§eYou left the group.")
 
             group.members.forEach {
                 val member = Bukkit.getPlayer(it)
 
                 if (member != null) {
-                    member.sendMessage("§e${player.name} left the party.")
+                    member.sendMessage("§e${player.name} left the group.")
                     member.sendMessage(
-                        "§a${Bukkit.getOfflinePlayer(newOwner).name} is now the party owner."
+                        "§a${Bukkit.getOfflinePlayer(newOwner).name} is now the group owner."
                     )
                 }
             }
@@ -312,11 +319,11 @@ class EchoWave : JavaPlugin(), Listener {
         group.members.remove(player.uniqueId)
         settings.groupId = null
 
-        player.sendMessage("§eYou left the party.")
+        player.sendMessage("§eYou left the group.")
 
         group.members.forEach {
             Bukkit.getPlayer(it)?.sendMessage(
-                "§e${player.name} left the party."
+                "§e${player.name} left the group."
             )
         }
     }
@@ -324,10 +331,10 @@ class EchoWave : JavaPlugin(), Listener {
     fun showMembers(player: Player) {
         val settings = getPlayerSettings(player)
         val group = groups[settings.groupId] ?: run {
-            player.sendMessage("§cYou are not in a party.")
+            player.sendMessage("§cYou are not in a group.")
             return
         }
-        player.sendMessage("§b===== EchoWave Party =====")
+        player.sendMessage("§b===== EchoWave Group =====")
         player.sendMessage(
             "§eOwner: ${
                 Bukkit.getOfflinePlayer(group.owner).name
@@ -350,7 +357,7 @@ class EchoWave : JavaPlugin(), Listener {
         val settings = getPlayerSettings(player)
 
         if (!settings.groupId.isNullOrBlank()) {
-            player.sendMessage("§c[Echowave] Leave your current party first.")
+            player.sendMessage("§c[Echowave] Leave your current Group first.")
             return
         }
 
@@ -361,7 +368,7 @@ class EchoWave : JavaPlugin(), Listener {
             joinCode = groupId
         )
         settings.groupId = groupId
-        player.sendMessage("§a[Echowave] Party created")
+        player.sendMessage("§a[Echowave] Group created")
 
 
     }
@@ -376,7 +383,7 @@ class EchoWave : JavaPlugin(), Listener {
         val group = groups[settings.groupId] ?: return
 
         if(group.owner != player.uniqueId){
-            player.sendMessage("§c[Echowave] Only the party owner can invite players.")
+            player.sendMessage("§c[Echowave] Only the group owner can invite players.")
             return
         }
 
@@ -394,7 +401,7 @@ class EchoWave : JavaPlugin(), Listener {
         }
 
         if(inPlayer.uniqueId in group.members){
-            player.sendMessage("§e[Echowave] ${inPlayer.name} is already in your party.")
+            player.sendMessage("§e[Echowave] ${inPlayer.name} is already in your Group.")
             return
         }
 
@@ -409,8 +416,10 @@ class EchoWave : JavaPlugin(), Listener {
         }
         invites.add(GroupInvite(partyId = settings.groupId!!, code = group.joinCode))
 
-        inPlayer.sendMessage("§a[Echowave] ${player.name} invited you to a party. §b${group.joinCode}")
+        inPlayer.sendMessage("§a[Echowave] ${player.name} invited you to a Group. §b${group.joinCode}")
         player.sendMessage("§a[Echowave] Invite sent to ${inPlayer.name}.")
+        playConfiguredSound(inPlayer,"sounds.invite")
+        playConfiguredSound(player,"sounds.invite-sent")
 
 
     }
@@ -419,14 +428,14 @@ class EchoWave : JavaPlugin(), Listener {
         val settings = getPlayerSettings(player)
 
         val groupId = settings.groupId ?: run {
-            player.sendMessage("§c[Echowave] You are not in a party.")
+            player.sendMessage("§c[Echowave] You are not in a Group.")
             return
         }
 
         val group = groups[groupId] ?: return
 
         if (group.owner != player.uniqueId) {
-            player.sendMessage("§c[Echowave] Only the party owner can kick players.")
+            player.sendMessage("§c[Echowave] Only the group owner can kick players.")
             return
         }
 
@@ -444,18 +453,19 @@ class EchoWave : JavaPlugin(), Listener {
         }
 
         if (targetPlayer.uniqueId !in group.members) {
-            player.sendMessage("§c[Echowave] ${targetPlayer.name} is not in your party.")
+            player.sendMessage("§c[Echowave] ${targetPlayer.name} is not in your group.")
             return
         }
 
         group.members.remove(targetPlayer.uniqueId)
         getPlayerSettings(targetPlayer).groupId = null
 
-        targetPlayer.sendMessage("§cYou were kicked from the party.")
+        targetPlayer.sendMessage("§cYou were kicked from the group.")
+        playConfiguredSound(targetPlayer,"sounds.kick")
 
         group.members.forEach {
             Bukkit.getPlayer(it)?.sendMessage(
-                "§e${targetPlayer.name} was kicked from the party."
+                "§e${targetPlayer.name} was kicked from the group."
             )
         }
 
@@ -466,14 +476,14 @@ class EchoWave : JavaPlugin(), Listener {
         val settings = getPlayerSettings(player)
 
         val groupId = settings.groupId ?: run {
-            player.sendMessage("§c[Echowave] You are not in a party.")
+            player.sendMessage("§c[Echowave] You are not in a group.")
             return
         }
 
         val group = groups[groupId] ?: return
 
         if (group.owner != player.uniqueId) {
-            player.sendMessage("§c[Echowave] Only the party owner can transfer ownership.")
+            player.sendMessage("§c[Echowave] Only the group owner can transfer ownership.")
             return
         }
 
@@ -486,7 +496,7 @@ class EchoWave : JavaPlugin(), Listener {
         }
 
         if (targetPlayer.uniqueId !in group.members) {
-            player.sendMessage("§c[Echowave] ${targetPlayer.name} is not in your party.")
+            player.sendMessage("§c[Echowave] ${targetPlayer.name} is not in your group.")
             return
         }
 
@@ -498,12 +508,48 @@ class EchoWave : JavaPlugin(), Listener {
         group.owner = targetPlayer.uniqueId
 
         group.members.forEach {
-            Bukkit.getPlayer(it)?.sendMessage(
-                "§a${targetPlayer.name} is now the party owner."
-            )
+            Bukkit.getPlayer(it)?.let { member ->
+                member.sendMessage(
+                    "§a${targetPlayer.name} is now the group owner."
+                )
+                playConfiguredSound(member, "sounds.transfer")
+            }
         }
     }
 
+    fun reload(sender: Player) {
+        reloadConfig()
+
+        voiceBannedPlayers.clear()
+
+        config.getStringList("voice-bans")
+            .mapNotNull {
+                runCatching { UUID.fromString(it) }.getOrNull()
+            }
+            .forEach(voiceBannedPlayers::add)
+
+        sender.sendMessage("§aEchoWave configuration reloaded.")
+    }
+
+    fun playConfiguredSound(player: Player, path: String) {
+        if (!config.getBoolean("sounds.enabled")) return
+
+        val sound = runCatching {
+            Sound.valueOf(config.getString(path)!!)
+        }.getOrNull() ?: return
+
+        player.playSound(player.location, sound, 1f, 1f)
+    }
+
+    fun updateMuteNameTag(player: Player) {
+        val settings = getPlayerSettings(player)
+
+        if (settings.muted) {
+            player.setPlayerListName("§7[MUTED] §r${player.name}")
+        } else {
+            player.setPlayerListName(player.name)
+        }
+    }
 
 
 }

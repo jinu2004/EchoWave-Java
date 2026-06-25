@@ -7,3 +7,7 @@ commands:
   echo:
     description: EchoWave Voice
     usage: /echo
+permissions:
+  echowave.admin:
+    description: Allows administrative EchoWave commands
+    default: op

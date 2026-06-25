@@ -1,0 +1,10 @@
+voice-bans: []
+
+sounds:
+  enabled: true
+
+  join: ENTITY_PLAYER_LEVELUP
+  invite: BLOCK_NOTE_BLOCK_CHIME
+  kick: ENTITY_VILLAGER_NO
+  invite-sent: BLOCK_NOTE_BLOCK_BELL
+  transfer: UI_TOAST_CHALLENGE_COMPLETE

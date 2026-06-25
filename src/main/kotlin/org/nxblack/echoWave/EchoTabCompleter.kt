@@ -1,0 +1,74 @@
+package org.nxblack.echoWave
+
+import org.bukkit.Bukkit
+import org.bukkit.command.Command
+import org.bukkit.command.CommandSender
+import org.bukkit.command.TabCompleter
+import org.bukkit.entity.Player
+
+class EchoTabCompleter(private val plugin: EchoWave) : TabCompleter {
+    companion object {
+        private val PLAYER_COMMANDS = setOf(
+            "invite",
+            "kick",
+            "transfer",
+            "voiceban",
+            "voiceunban",
+            "voicecheck"
+        )
+    }
+        override fun onTabComplete(
+            sender: CommandSender,
+            command: Command,
+            label: String,
+            args: Array<out String>
+        ): List<String> {
+
+            if (args.size == 1) {
+                val commands = mutableListOf(
+                    "mute",
+                    "invite",
+                    "join",
+                    "leave",
+                    "members",
+                    "kick",
+                    "transfer"
+                )
+
+                if (sender.hasPermission("echowave.admin")) {
+                    commands += listOf(
+                        "voiceban",
+                        "voiceunban",
+                        "voicecheck",
+                        "reload"
+                    )
+                }
+
+                return commands.filter { it.startsWith(args[0], ignoreCase = true) }
+            }
+
+            if (args.size == 2) {
+                when (args[0].lowercase()) {
+                    "join" -> {
+                        val player = sender as? Player ?: return emptyList()
+                        return plugin.pendingInvites[player.uniqueId]
+                            ?.map { it.code }
+                            ?.filter {
+                                it.startsWith(args[1], ignoreCase = true)
+                            }
+                            ?: emptyList()
+                    }
+
+                    in PLAYER_COMMANDS -> {
+                        return Bukkit.getOnlinePlayers()
+                            .map { it.name }
+                            .filter {
+                                it.startsWith(args[1], ignoreCase = true)
+                            }
+                    }
+                }
+            }
+
+            return emptyList()
+        }
+}
