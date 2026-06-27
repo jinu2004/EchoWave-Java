@@ -1,129 +1,179 @@
 # EchoWave
 
-EchoWave is a Minecraft server plugin (Kotlin) that provides chat and player features for Java Edition and integrates Bedrock players via Geyser + Floodgate. It also has companion web and Android apps to manage per-player custom prefixes and view player info remotely.
+**EchoWave** is a lightweight proximity voice integration for Minecraft that connects Java Edition, Bedrock Edition (via Geyser), and the EchoWave mobile application.
 
-> NOTE: Replace placeholder links below (web app, Android app) and any example values with your actual URLs and values.
+Unlike traditional voice chat mods, EchoWave requires **no client-side Java mod**. Players simply join the server, enter the room code shown by the plugin into the EchoWave app, and begin talking with nearby players.
 
-## Requirements
+---
 
-- Java 17+ (or the version your server requires)
-- Paper, Purpur, or any Spigot-compatible server
-- (Optional, for Bedrock support) Geyser and Floodgate installed on the proxy or server-side
+## Features
 
-## Download & Install
+* 🎙️ Real-time proximity voice chat
+* 📱 Companion mobile application
+* ☕ Supports Java Edition servers
+* 🛏️ Supports Bedrock Edition through Geyser/Floodgate
+* 👥 Party (Group) voice system
+* 🔇 Individual mute toggle
+* 🔨 Voice bans for administrators
+* 🔊 Configurable sounds
+* ⚡ Lightweight HTTP communication
+* 🌍 Multi-world support
+* 🔄 Automatic room recreation if the backend restarts
 
-1. Download the EchoWave jar from your releases page or build from source (instructions below).
-2. Stop your Minecraft server.
-3. Copy `EchoWave-<version>.jar` to the server's `plugins/` directory.
-4. Start the server. EchoWave will generate `plugins/EchoWave/` and its configuration files.
+---
 
-## Build from source
+## Supported Servers
 
-- Clone the repo:
-  git clone https://github.com/jinu2004/EchoWave-Java.git
+* Paper
+* Purpur
+* Pufferfish
+* Spigot
+* Folia *(experimental)*
 
-- Build with Gradle (Linux/macOS):
-  ./gradlew clean build
+---
 
-  On Windows:
-  gradlew.bat clean build
+## Installation
 
-- The plugin jar will be in `build/libs/` (for example `build/libs/EchoWave-1.0.0.jar`).
+1. Download the latest EchoWave plugin.
+2. Place the plugin inside your server's `plugins` folder.
+3. Start the server.
+4. A room code will be generated automatically.
+5. Players join using the EchoWave mobile application.
+
+---
+
+## Commands
+
+### Player Commands
+
+| Command                   | Description                     |
+| ------------------------- | ------------------------------- |
+| `/echo`                   | Shows help                      |
+| `/echo mute`              | Toggle voice chat               |
+| `/echo invite <player>`   | Invite a player to your group   |
+| `/echo join <code>`       | Join a group                    |
+| `/echo leave`             | Leave your current group        |
+| `/echo members`           | View group members              |
+| `/echo kick <player>`     | Remove a member from your group |
+| `/echo transfer <player>` | Transfer group ownership        |
+
+### Administrator Commands
+
+| Command                     | Description                            |
+| --------------------------- | -------------------------------------- |
+| `/echo voiceban <player>`   | Prevent a player from using voice chat |
+| `/echo voiceunban <player>` | Remove a voice ban                     |
+| `/echo voicecheck <player>` | Check a player's voice status          |
+| `/echo reload`              | Reload the configuration               |
+
+---
+
+## Permissions
+
+| Permission       | Description                          |
+| ---------------- | ------------------------------------ |
+| `echowave.admin` | Access to all administrator commands |
+
+Default: **OP**
+
+---
 
 ## Configuration
 
-After first run, `plugins/EchoWave/config.yml` will be created. Example relevant Floodgate settings and prefix options:
-
 ```yaml
-# plugins/EchoWave/config.yml
+voice-bans: []
 
-floodgate:
-  enabled: true                # Enable Floodgate/Geyser handling
-  enableNamePrefix: true       # Add a prefix to Floodgate (Bedrock) players' display names
-  defaultPrefix: "&7[Bedrock] &r"  # Default prefix applied to Bedrock players (supports color codes)
-  useCustomPrefixFromApp: false # If true, use prefixes set via web/android app
+server-id: survival
 
-general:
-  allowCustomPrefixes: true  # Allow custom prefixes (via commands or app)
-
-api:
+sounds:
   enabled: true
-  token: "change-this-token" # Token for web/android app auth (if API enabled)
+
+  join: entity.player.levelup
+  invite: block.note_block.chime
+  invite-sent: block.note_block.bell
+  kick: entity.villager.no
+  transfer: ui.toast.challenge_complete
 ```
 
-Notes:
-- Floodgate must be installed and correctly configured so the server receives Bedrock authentication.
-- EchoWave detects Bedrock players by Floodgate UUID and applies prefixes only to those players when enabled.
-- Color codes like `&a`, `&c` are supported if your server or chat plugin converts them to Minecraft color characters.
+---
 
-## Floodgate / Geyser Integration
+## Group System
 
-- When `floodgate.enabled` and `floodgate.enableNamePrefix` are true, the plugin detects Floodgate-authenticated players and applies the configured prefix to their display name and chat name.
-- If `floodgate.useCustomPrefixFromApp` is enabled, EchoWave will query the web/Android app (or the plugin-side store used by the apps) to apply per-player custom prefixes instead of `defaultPrefix`.
-- Detection is based on Floodgate identifiers; Java players are left unchanged unless given custom prefixes.
+Groups allow players to communicate regardless of proximity.
 
-Example behavior:
-- Bedrock player `bedrock_user` joins → display name becomes `§7[Bedrock] §rbedrock_user` (color codes converted at runtime) so the prefix appears in chat and player lists.
+Features include:
 
-## Commands (examples)
+* Automatic group creation when inviting
+* Group invitations
+* Ownership transfer
+* Member kicking
+* Automatic owner transfer when the owner leaves
+* Instant group synchronization
 
-- /echowave reload — Reload plugin config
-- /echowave setprefix <player> <prefix> — Set a custom prefix for a player
-- /echowave removeprefix <player> — Remove a player’s custom prefix
+---
 
-Permissions (example):
-- echowave.reload — reload config
-- echowave.setprefix — set custom prefix
-- echowave.manage — full management
+## Bedrock Support
 
-(Adjust command names and permissions to match your plugin implementation.)
+EchoWave fully supports Bedrock players through:
 
-## Web App & Android App
+* Geyser
+* Floodgate
 
-EchoWave’s companion apps allow remote management of custom prefixes and player info.
+Bedrock players use the same mobile application and can communicate seamlessly with Java players.
 
-- Web App: [Replace with web app URL] — Manage connected players, set per-player prefixes, and toggle Floodgate prefix behavior. The web app authenticates using the API token configured in the plugin.
-- Android App: [Replace with Android app URL / Play Store link] — Manage prefixes and receive notifications for Bedrock joins. Uses the same API token.
+---
 
-How integration works:
-- Enable the plugin API and set an API token in the plugin config.
-- The web/Android apps call the plugin API to query or set per-player custom prefixes.
-- If `useCustomPrefixFromApp` is true, app-set prefixes override the server default.
+## Multi-World Support
 
-Security:
-- Keep API tokens secret.
-- If exposing the API externally, use HTTPS, reverse proxies, IP restrictions, or other protections.
+Players only hear others within the same world.
 
-## Examples
+This prevents voice chat between:
 
-- Default Bedrock prefix:
-```yaml
-floodgate:
-  enabled: true
-  enableNamePrefix: true
-  defaultPrefix: "&b[Bedrock] &r"
-  useCustomPrefixFromApp: false
-```
+* Hub ↔ Survival
+* Survival ↔ Skyblock
+* Lobby ↔ Minigames
 
-- Use per-player custom prefixes from apps:
-```yaml
-floodgate:
-  enabled: true
-  enableNamePrefix: true
-  defaultPrefix: ""
-  useCustomPrefixFromApp: true
-```
+making EchoWave suitable for multi-world and networked servers.
 
-## Troubleshooting
+---
 
-- Prefixes not appearing? Confirm Floodgate is installed and your server receives Floodgate UUIDs. Check plugin logs for detection messages.
-- Colors not rendering? Ensure server or chat plugin supports color codes or adjust to the correct formatting.
-- App API calls failing? Verify API token, network connectivity, and firewall settings.
+## Voice Bans
 
-## Contributing
+Administrators can permanently prevent players from using EchoWave.
 
-Contributions welcome. Open issues for bugs or feature requests, and submit pull requests for improvements.
+Voice bans persist across server restarts.
+
+---
+
+## Companion App
+
+When players join the server, they receive the generated room code.
+
+Simply open the EchoWave app, enter the room code, and connect.
+
+---
+
+## Backend
+
+EchoWave communicates with a secure backend service that:
+
+* Maintains active voice rooms
+* Receives player position updates
+* Calculates nearby players
+* Automatically recreates rooms if necessary
+
+---
+
+## Requirements
+
+* Java 21 or newer
+* Minecraft 1.21+
+* Internet connection for backend communication
+
+---
 
 ## License
 
-Specify your preferred license (e.g., MIT) here.
+Copyright © EchoWave.
+
+All rights reserved.
